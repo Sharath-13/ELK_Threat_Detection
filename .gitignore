@@ -47,3 +47,5 @@ scripts/verify_and_sync_credentials.py
 # Exclude downloaded Winlogbeat files
 winlogbeat/*.zip
 winlogbeat/winlogbeat-8.11.3-windows-x86_64/
+
+winlogbeat/
