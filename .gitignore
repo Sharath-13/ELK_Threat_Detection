@@ -1,0 +1,49 @@
+
+@'
+.env
+.env.*
+!.env.example
+
+# Backup and recovery files
+*.bak
+*.bak*
+*.old
+*.backup*
+*pre-encryption-repair*
+
+# Python cache
+__pycache__/
+*.pyc
+
+# Winlogbeat runtime data and downloaded installation
+winlogbeat/*/data/
+winlogbeat/*/logs/
+winlogbeat/winlogbeat-*/
+
+# OS files
+.DS_Store
+Thumbs.db
+'@ | Set-Content -Path .gitignore
+# Environment secrets
+.env
+.env.*
+!.env.example
+# Environment files and secrets
+.env
+.env.*
+!.env.example
+
+# Backup files
+*.bak
+*.old
+*.backup*
+*pre-encryption-repair*
+# Winlogbeat downloaded installation files
+winlogbeat/*.zip
+winlogbeat/winlogbeat-8.11.3-windows-x86_64/
+
+scripts/verify_and_sync_credentials.py
+
+# Exclude downloaded Winlogbeat files
+winlogbeat/*.zip
+winlogbeat/winlogbeat-8.11.3-windows-x86_64/

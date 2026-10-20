@@ -1,0 +1,153 @@
+
+version: "3.8"
+
+services:
+  # Elasticsearch
+  elasticsearch:
+    image: docker.elastic.co/elasticsearch/elasticsearch:${STACK_VERSION}
+    container_name: elasticsearch
+    restart: unless-stopped
+    environment:
+      - node.name=elasticsearch
+      - cluster.name=elk-threat-cluster
+      - discovery.type=single-node
+      - bootstrap.memory_lock=false
+      - ELASTIC_PASSWORD=${ELASTIC_PASSWORD}
+      - xpack.security.enabled=true
+      - xpack.security.http.ssl.enabled=false
+      - xpack.security.transport.ssl.enabled=false
+      - xpack.license.self_generated.type=basic
+      - ES_JAVA_OPTS=${ES_JAVA_OPTS}
+    deploy:
+      resources:
+        limits:
+          memory: ${ES_MEM_LIMIT}
+    ports:
+      - "127.0.0.1:${ES_PORT}:9200"
+    volumes:
+      - esdata:/usr/share/elasticsearch/data
+    networks:
+      - elk-network
+    healthcheck:
+      test:
+        - CMD-SHELL
+        - 'curl -s -u "elastic:$${ELASTIC_PASSWORD}" http://localhost:9200/_cluster/health | grep -Eq "\"status\":\"(green|yellow)\""'
+      interval: 10s
+      timeout: 10s
+      retries: 10
+      start_period: 30s
+
+  # Initialize Kibana system credentials
+  setup:
+    image: docker.elastic.co/elasticsearch/elasticsearch:${STACK_VERSION}
+    container_name: elk-setup
+    depends_on:
+      elasticsearch:
+        condition: service_healthy
+    networks:
+      - elk-network
+    entrypoint:
+      - bash
+      - -c
+      - |
+        set -e
+        echo "Configuring Kibana system account..."
+        curl -sSf -X POST \
+          -u "elastic:$${ELASTIC_PASSWORD}" \
+          -H "Content-Type: application/json" \
+          "http://elasticsearch:9200/_security/user/kibana_system/_password" \
+          -d "{\"password\":\"$${KIBANA_PASSWORD}\"}"
+        echo "Initialization completed successfully."
+    environment:
+      - ELASTIC_PASSWORD=${ELASTIC_PASSWORD}
+      - KIBANA_PASSWORD=${KIBANA_PASSWORD}
+    restart: "no"
+
+  # Logstash
+  logstash:
+    image: docker.elastic.co/logstash/logstash:${STACK_VERSION}
+    container_name: logstash
+    restart: unless-stopped
+    depends_on:
+      elasticsearch:
+        condition: service_healthy
+    environment:
+      - LS_JAVA_OPTS=${LS_JAVA_OPTS}
+      - ELASTICSEARCH_HOST=http://elasticsearch:9200
+      - ELASTIC_PASSWORD=${ELASTIC_PASSWORD}
+    deploy:
+      resources:
+        limits:
+          memory: ${LS_MEM_LIMIT}
+    ports:
+      - "127.0.0.1:${LOGSTASH_PORT}:5044"
+    volumes:
+      - ./logstash/pipeline:/usr/share/logstash/pipeline:ro
+      - ./logstash/config/logstash.yml:/usr/share/logstash/config/logstash.yml:ro
+    networks:
+      - elk-network
+
+  # Kibana
+  kibana:
+    image: docker.elastic.co/kibana/kibana:${STACK_VERSION}
+    container_name: kibana
+    restart: unless-stopped
+    depends_on:
+      setup:
+        condition: service_completed_successfully
+      elasticsearch:
+        condition: service_healthy
+    environment:
+      - SERVER_NAME=kibana
+      - SERVER_HOST=0.0.0.0
+      - ELASTICSEARCH_HOSTS=http://elasticsearch:9200
+      - ELASTICSEARCH_USERNAME=kibana_system
+      - ELASTICSEARCH_PASSWORD=${KIBANA_PASSWORD}
+      - NODE_OPTIONS=${NODE_OPTIONS}
+      - XPACK_SECURITY_ENCRYPTIONKEY=${XPACK_SECURITY_ENCRYPTIONKEY}
+      - XPACK_ENCRYPTEDSAVEDOBJECTS_ENCRYPTIONKEY=${XPACK_ENCRYPTEDSAVEDOBJECTS_ENCRYPTIONKEY}
+      - XPACK_REPORTING_ENCRYPTIONKEY=${XPACK_REPORTING_ENCRYPTIONKEY}
+    deploy:
+      resources:
+        limits:
+          memory: ${KIBANA_MEM_LIMIT}
+    ports:
+      - "127.0.0.1:${KIBANA_PORT}:5601"
+    networks:
+      - elk-network
+    healthcheck:
+      test:
+        - CMD-SHELL
+        - 'curl -s http://localhost:5601/api/status | grep -q "\"level\":\"available\""'
+      interval: 15s
+      timeout: 10s
+      retries: 10
+      start_period: 90s
+
+  # Cloudflare Tunnel
+  cloudflared:
+    image: cloudflare/cloudflared:latest
+    container_name: cloudflared
+    restart: unless-stopped
+    depends_on:
+      kibana:
+        condition: service_healthy
+    command:
+      - tunnel
+      - --no-autoupdate
+      - --url
+      - http://kibana:5601
+    deploy:
+      resources:
+        limits:
+          memory: 120m
+    networks:
+      - elk-network
+
+networks:
+  elk-network:
+    driver: bridge
+
+volumes:
+  esdata:
+    driver: local

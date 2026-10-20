@@ -1,0 +1,59 @@
+# ==============================================================================
+# Filebeat Configuration for Linux Security Log Collection
+# Project: Centralized Log Monitoring and Threat Detection System
+# ==============================================================================
+
+filebeat.inputs:
+  # ----------------------------------------------------------------------------
+  # Linux Authentication Logs (/var/log/auth.log and /var/log/secure)
+  # ----------------------------------------------------------------------------
+  - type: filestream
+    id: linux-auth-logs
+    enabled: true
+    paths:
+      - /var/log/auth.log
+      - /var/log/secure
+    fields:
+      log_type: linux_auth
+    fields_under_root: true
+    ignore_older: 72h
+
+  # ----------------------------------------------------------------------------
+  # Linux System Activity & Kernel Logs (/var/log/syslog and /var/log/messages)
+  # ----------------------------------------------------------------------------
+  - type: filestream
+    id: linux-system-logs
+    enabled: true
+    paths:
+      - /var/log/syslog
+      - /var/log/messages
+    fields:
+      log_type: linux_system
+    fields_under_root: true
+    ignore_older: 72h
+
+# ------------------------------------------------------------------------------
+# Processors: Enrich events with host and cloud metadata
+# ------------------------------------------------------------------------------
+processors:
+  - add_host_metadata:
+      when.not.has_fields: ['host']
+  - add_fields:
+      fields:
+        log_source_os: "Linux"
+
+# ------------------------------------------------------------------------------
+# Output Configuration: Forward to Logstash Server IP:5044
+# Replace 192.168.0.113 with the ELK host IP or 127.0.0.1 if running on same VM
+# ------------------------------------------------------------------------------
+output.logstash:
+  hosts: ["192.168.0.113:5044"]
+
+# Logging
+logging.level: info
+logging.to_files: true
+logging.files:
+  path: /var/log/filebeat
+  name: filebeat
+  keepfiles: 5
+  permissions: 0600
