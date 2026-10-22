@@ -1,6 +1,6 @@
 # Centralized Log Monitoring and Threat Detection System using ELK Stack
 
-> **MCA Major Project**  
+
 > **Topic**: Centralized Log Monitoring, Event Enrichment, and Cyber Threat Detection using Elasticsearch, Logstash, Kibana (v8.11.3), and Beats.
 
 ---
